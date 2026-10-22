@@ -1,16 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Terminal, ShieldCheck, Zap, GitPullRequest, Search, CheckCircle2, 
-  AlertTriangle, RefreshCw, Cpu, Server, ExternalLink, Code2, Play, FileCode, Check
+  AlertTriangle, RefreshCw, Cpu, Server, ExternalLink, Code2, Play, FileCode, Check,
+  Key, Settings, X
 } from 'lucide-react';
 
-const API_BASE = "http://localhost:8000";
+// In dev mode Vite proxies /api → backend:8000; in production build, FastAPI serves both
+const API_BASE = "";
 
 export default function App() {
   const [scenarios, setScenarios] = useState([]);
   const [selectedScenario, setSelectedScenario] = useState("pydantic-v2-billing-outage");
   const [scenarioData, setScenarioData] = useState(null);
   
+  // API Keys & Config Modal State
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [tavilyKeyInput, setTavilyKeyInput] = useState("");
+  const [nebiusKeyInput, setNebiusKeyInput] = useState("");
+  const [keySaveMsg, setKeySaveMsg] = useState("");
+  const [apiStatus, setApiStatus] = useState({ nebius_configured: false, tavily_configured: false });
+
   // Custom Scenario Modal/State
   const [isCustomMode, setIsCustomMode] = useState(false);
   const [customTitle, setCustomTitle] = useState("Production Memory Leak & Unclosed Socket");
@@ -35,8 +44,20 @@ export default function App() {
   const [activeTestResults, setActiveTestResults] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  // Fetch Available Scenarios
+  // Fetch Available Scenarios & Health
   useEffect(() => {
+    fetch(`${API_BASE}/health`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.models) {
+          setApiStatus({
+            nebius_configured: data.models.nebius_configured,
+            tavily_configured: data.models.tavily_configured
+          });
+        }
+      })
+      .catch(err => console.log("Health check pending...", err));
+
     fetch(`${API_BASE}/api/scenarios`)
       .then(res => res.json())
       .then(data => {
@@ -65,6 +86,28 @@ export default function App() {
     setActivePatch(null);
     setActiveValidation(null);
     setActiveTestResults(null);
+  };
+
+  const saveKeys = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/config`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nebius_api_key: nebiusKeyInput,
+          tavily_api_key: tavilyKeyInput
+        })
+      });
+      const data = await res.json();
+      setApiStatus(data);
+      setKeySaveMsg("Keys saved & active in runtime!");
+      setTimeout(() => {
+        setKeySaveMsg("");
+        setShowKeyModal(false);
+      }, 1500);
+    } catch (e) {
+      setKeySaveMsg("Failed to save keys to server.");
+    }
   };
 
   // Run Autonomous Remediation via Server-Sent Events (SSE)
@@ -138,7 +181,6 @@ export default function App() {
     });
 
     eventSource.addEventListener("WORKFLOW_COMPLETED", (e) => {
-      const finalData = JSON.parse(e.data);
       setIsRunning(false);
       eventSource.close();
     });
@@ -208,26 +250,165 @@ export default function App() {
           </div>
         </div>
 
-        {/* Live Infrastructure Pills */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {/* Live Infrastructure Status Pills & Key Modal Trigger */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           <div className="glass-panel" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#76b900', boxShadow: '0 0 8px #76b900' }}></span>
-            <span>Nebius Token Factory</span>
+            <span style={{ 
+              width: 8, 
+              height: 8, 
+              borderRadius: '50%', 
+              background: apiStatus.nebius_configured ? '#76b900' : '#38bdf8',
+              boxShadow: apiStatus.nebius_configured ? '0 0 8px #76b900' : '0 0 8px #38bdf8' 
+            }}></span>
+            <span>{apiStatus.nebius_configured ? "Nebius Token Factory (Live)" : "Nebius (Simulation Active)"}</span>
           </div>
+
           <div className="glass-panel" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <Cpu size={14} color="#76b900" />
-            <span>Nemotron 3 Ultra (Reasoner)</span>
+            <Search size={14} color={apiStatus.tavily_configured ? "#06b6d4" : "#f59e0b"} />
+            <span>{apiStatus.tavily_configured ? "Tavily Search API (Live Connected)" : "Tavily API (Key Needed)"}</span>
           </div>
-          <div className="glass-panel" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <Zap size={14} color="#0070f3" />
-            <span>Nemotron 3 Nano (Fast Validator)</span>
-          </div>
-          <div className="glass-panel" style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-            <Search size={14} color="#06b6d4" />
-            <span>Tavily Search API</span>
-          </div>
+
+          <button
+            onClick={() => setShowKeyModal(true)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid var(--border-glow)',
+              color: '#fff',
+              padding: '7px 14px',
+              borderRadius: 8,
+              fontSize: 12,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600
+            }}
+          >
+            <Key size={14} color="#76b900" />
+            <span>Manage API Keys</span>
+          </button>
         </div>
       </header>
+
+      {/* API Keys Configuration Modal */}
+      {showKeyModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0, 0, 0, 0.75)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="glass-panel-glow" style={{ width: '100%', maxWidth: 520, padding: 24, borderRadius: 12, background: '#0b1120' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 16 }}>
+                <Key size={18} color="#76b900" />
+                <span>Configure Hackathon API Keys</span>
+              </div>
+              <button onClick={() => setShowKeyModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#06b6d4', marginBottom: 6 }}>
+                Tavily Search API Key (Required for $3,000 Award)
+              </label>
+              <input
+                type="password"
+                placeholder="tvly-xxxxxxxxxxxxxxx"
+                value={tavilyKeyInput}
+                onChange={(e) => setTavilyKeyInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#040711',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontFamily: 'JetBrains Mono'
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-dim)', display: 'block', marginTop: 4 }}>
+                Enables live real-time web searches against 2026 docs and GitHub issues.
+              </span>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#76b900', marginBottom: 6 }}>
+                Nebius Token Factory API Key
+              </label>
+              <input
+                type="password"
+                placeholder="Paste Nebius key (or leave blank for built-in simulation)"
+                value={nebiusKeyInput}
+                onChange={(e) => setNebiusKeyInput(e.target.value)}
+                style={{
+                  width: '100%',
+                  background: '#040711',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 6,
+                  padding: '10px 12px',
+                  color: '#fff',
+                  fontSize: 13,
+                  fontFamily: 'JetBrains Mono'
+                }}
+              />
+              <div style={{ marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                  Don't have a Nebius key yet?
+                </span>
+                <a 
+                  href="https://dev.nebius.com/builders" 
+                  target="_blank" 
+                  rel="noreferrer"
+                  style={{ fontSize: 11, color: '#38bdf8', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <span>Claim Free Credits on Nebius Builder Program</span>
+                  <ExternalLink size={10} />
+                </a>
+              </div>
+            </div>
+
+            {keySaveMsg && (
+              <div style={{ padding: '8px 12px', borderRadius: 6, background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontSize: 12, marginBottom: 14 }}>
+                {keySaveMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                onClick={() => setShowKeyModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-muted)',
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+              <button
+                onClick={saveKeys}
+                className="btn-primary"
+                style={{ padding: '8px 18px', fontSize: 13 }}
+              >
+                Save & Apply Live
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Control Deck: Incident Selector */}
       <section className="glass-panel" style={{ padding: 20, marginBottom: 24 }}>
@@ -418,7 +599,7 @@ export default function App() {
                   <span>Upstream Documentation Grounding (Tavily Search API)</span>
                 </div>
                 <span style={{ fontSize: 11, background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                  Verified 2026 Sources
+                  {apiStatus.tavily_configured ? "Live Tavily Runtime Verified" : "Simulated Grounding"}
                 </span>
               </div>
               {activeIntel.map((intel, idx) => (

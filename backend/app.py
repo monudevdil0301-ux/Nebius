@@ -46,6 +46,25 @@ def health():
         }
     }
 
+class ConfigUpdateRequest(BaseModel):
+    nebius_api_key: str = ""
+    tavily_api_key: str = ""
+
+@app.post("/api/config")
+def update_config(req: ConfigUpdateRequest):
+    if req.nebius_api_key:
+        config.nebius_api_key = req.nebius_api_key.strip()
+        orchestrator.diagnostician.__init__()
+        orchestrator.patch_engineer.__init__()
+        orchestrator.validator.__init__()
+    if req.tavily_api_key:
+        config.tavily_api_key = req.tavily_api_key.strip()
+        orchestrator.web_intelligence.__init__()
+    return {
+        "nebius_configured": bool(config.nebius_api_key),
+        "tavily_configured": bool(config.tavily_api_key)
+    }
+
 @app.get("/api/scenarios")
 def get_scenarios():
     return [
