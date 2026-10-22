@@ -96,17 +96,10 @@ async def remediate_custom(req: CustomIncidentRequest):
     generator = orchestrator.run_workflow("custom", custom_payload=custom_scenario)
     return StreamingResponse(generator, media_type="text/event-stream")
 
-# Serve frontend build if exists
-frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+# Mount production Vite build directly at root
+frontend_dist = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
 if os.path.exists(frontend_dist):
-    app.mount("/static", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="static")
-
-    @app.get("/{catchall:path}")
-    async def serve_frontend(catchall: str):
-        index_file = os.path.join(frontend_dist, "index.html")
-        if os.path.exists(index_file):
-            return FileResponse(index_file)
-        return {"status": "NebulaOps API Online"}
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
