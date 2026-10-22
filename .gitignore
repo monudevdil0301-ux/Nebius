@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Secrets & Environment
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
