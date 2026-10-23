@@ -1,0 +1,10 @@
+{
+  "name": "nebula-ops",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NebulaOps — Autonomous Self-Healing SRE & Code Remediation Agent",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "python -m backend.app"
+  }
+}

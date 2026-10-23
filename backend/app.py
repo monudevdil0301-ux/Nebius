@@ -96,9 +96,9 @@ async def remediate_custom(req: CustomIncidentRequest):
     generator = orchestrator.run_workflow("custom", custom_payload=custom_scenario)
     return StreamingResponse(generator, media_type="text/event-stream")
 
-# Mount production Vite build directly at root
+# Mount production Vite build directly at root when running locally (on Vercel, static files are served by edge CDN)
 frontend_dist = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
-if os.path.exists(frontend_dist):
+if not os.environ.get("VERCEL") and os.path.exists(frontend_dist):
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
 if __name__ == "__main__":
